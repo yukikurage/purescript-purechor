@@ -1,0 +1,24 @@
+{
+  "name": "purescript-purechor",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test:main": "spago bundle-app --main Test.Main --to dist/index.js",
+    "test:a": "spago bundle-app --main Test.WorkerAMain --to dist/workerA.js",
+    "test:b": "spago bundle-app --main Test.WorkerBMain --to dist/workerB.js",
+    "test:cp": "cpx 'public/**/*' dist",
+    "test": "npm run test:main && npm run test:a && npm run test:b && npm run test:cp"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "esbuild": "^0.23.0",
+    "purescript": "^0.15.15",
+    "purs-tidy": "^0.11.0",
+    "spago": "^0.21.0"
+  },
+  "dependencies": {
+    "cpx": "^1.5.0"
+  }
+}
