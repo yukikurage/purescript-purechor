@@ -10,7 +10,7 @@
     "test": "npm run test:main && npm run test:a && npm run test:b && npm run test:cp"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "description": "",
   "devDependencies": {
     "esbuild": "^0.23.0",
