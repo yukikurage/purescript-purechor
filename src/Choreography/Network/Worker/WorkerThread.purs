@@ -2,55 +2,41 @@ module Choreography.Network.Worker.WorkerThread where
 
 import Prelude
 
-import Choreography.Network (NetworkSig(..), Network)
-import Choreography.Structured (class Structured)
+import Choreography.Network (class Backend, Network, NetworkSig(..))
+import Choreography.Network.Worker.Config (Config)
+import Choreography.Structured (fromForeign, toForeign)
+import Choreography.WorkerManager.WorkerThread as WM
 import Control.Monad.Free (foldFree)
 import Control.Monad.Rec.Class (class MonadRec)
-import Effect (Effect)
-import Effect.AVar (AVar)
-import Effect.Aff (launchAff_)
-import Effect.Aff.AVar (empty, put, take)
+import Data.Maybe (Maybe(..))
+import Effect.Aff (error)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (liftEffect)
-import Effect.Class.Console (log)
-import Unsafe.Coerce (unsafeCoerce)
+import Effect.Exception (throwException)
 
-foreign import data Data :: Type
-
-instance Structured Data
-
-foreign import postMessageToMain :: Data -> Effect Unit
-foreign import onMessage :: (Data -> Effect Unit) -> Effect Unit
-
--- | Choreo が正しく動いている限り unsafe ではない
-unsafeDecodeData :: forall a. Structured a => Data -> a
-unsafeDecodeData = unsafeCoerce
-
-encodeData :: forall a. Structured a => a -> Data
-encodeData = unsafeCoerce
-
-handleNetworkWorker :: forall m a. MonadAff m => AVar Data -> NetworkSig m a -> m a
-handleNetworkWorker box = case _ of
+handleNetworkMain :: forall m a. MonadAff m => WM.WorkerManager -> NetworkSig m a -> m a
+handleNetworkMain wm = case _ of
   Run m -> m
   Send f l a -> do
-    log "Worker:Send"
-    liftEffect $ postMessageToMain (encodeData { messageType: "send", messageData: f encodeData, sendLocation: l }) *> pure a
-  -- Recv の順番によってはバグりそう
-  -- Worker が 2 つ以上起動しているとき、他の Worker からのメッセージが先に来るとバグる
-  Recv _ f -> do
-    log "Woker:Recv"
-    d <- liftAff $ take box
-    pure $ f \xToA -> xToA (unsafeDecodeData d)
+    WM.putMessage wm l $ f toForeign
+    pure a
+  Recv l f -> do
+    msg <- liftAff $ WM.takeMessage wm l
+    f \xToA -> do
+      strct <- case fromForeign msg of
+        Just x -> pure x
+        Nothing -> liftEffect $ throwException $ error "Invalid message"
+      pure $ xToA strct
   BCast f a -> do
-    log "Worker:BCast"
-    liftEffect $ postMessageToMain (encodeData { messageType: "bcast", messageData: f encodeData, sendLocation: "" }) *> pure a
+    WM.broadcastMessage wm $ f toForeign
+    pure a
 
-runNetworkWorker :: forall m a. MonadRec m => MonadAff m => Network m a -> m a
-runNetworkWorker network = do
-  box <- liftAff $ empty
-  liftEffect $ onMessage \d -> launchAff_ $ put d box
-  a <- foldFree (handleNetworkWorker box) network
+runNetworkMain :: forall m a. MonadAff m => MonadRec m => Config -> Network m a -> m a
+runNetworkMain { mainLocation, workerPaths } network = do
+  wm <- WM.newWorkerManager mainLocation workerPaths
+  foldFree (handleNetworkMain wm) network
 
-  liftEffect $ postMessageToMain (encodeData { messageType: "terminate", messageData: "", sendLocation: "" })
+newtype WorkerConfig = WorkerConfig Config
 
-  pure a
+instance Backend WorkerConfig where
+  runNetwork (WorkerConfig config) _ network = runNetworkMain config network

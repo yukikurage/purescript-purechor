@@ -5,6 +5,8 @@ import Prelude
 import Choreography.Location (LocTm)
 import Choreography.Structured (class Structured)
 import Control.Monad.Free (Free, liftF)
+import Control.Monad.Rec.Class (class MonadRec)
+import Effect.Aff.Class (class MonadAff)
 
 data NetworkSig m a
   = Run (m a)
@@ -27,4 +29,4 @@ broadcast :: forall m a. Structured a => a -> Network m Unit
 broadcast a = liftF $ BCast (\f -> f a) unit
 
 class Backend c where
-  runNetwork :: forall m a. c -> LocTm -> Network m a -> m a
+  runNetwork :: forall m a. MonadAff m => MonadRec m => c -> LocTm -> Network m a -> m a
