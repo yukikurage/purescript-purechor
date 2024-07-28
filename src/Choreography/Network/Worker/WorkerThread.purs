@@ -5,6 +5,7 @@ import Prelude
 import Choreography.Network (class Backend, Network, NetworkSig(..))
 import Choreography.Network.Worker.Config (Config)
 import Choreography.Structured (fromForeign, toForeign)
+import Choreography.WorkerManager.WorkerThread (terminateSelf)
 import Choreography.WorkerManager.WorkerThread as WM
 import Control.Monad.Free (foldFree)
 import Control.Monad.Rec.Class (class MonadRec)
@@ -34,7 +35,7 @@ handleNetworkMain wm = case _ of
 runNetworkMain :: forall m a. MonadAff m => MonadRec m => Config -> Network m a -> m a
 runNetworkMain { mainLocation, workerPaths } network = do
   wm <- WM.newWorkerManager mainLocation workerPaths
-  foldFree (handleNetworkMain wm) network
+  foldFree (handleNetworkMain wm) network <* terminateSelf wm
 
 newtype WorkerConfig = WorkerConfig Config
 
